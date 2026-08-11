@@ -21,16 +21,16 @@
 |---|---|
 | **문제** | 단일 이미지 얼굴 비교를 실제 출결 workflow로 어떻게 확장할까? |
 | **검출·표현** | RetinaFace detection + ArcFace embedding |
-| **판정** | cosine threshold **0.68** + top-1/top-2 margin **0.03** |
+| **판정** | 가장 닮은 후보를 찾되 두 후보가 비슷하면 출석 처리하지 않음 |
 | **품질 방어** | 다중 프레임, sharpness filter, centroid 후보 + sample 재검증 |
 | **제품 연결** | FastAPI · SQLAlchemy · MariaDB · React · Vite |
 
 <table>
 <tr>
-<td width="25%" align="center"><h3>0.68</h3><sub>Cosine<br/>Threshold</sub></td>
-<td width="25%" align="center"><h3>0.03</h3><sub>Top-1 / Top-2<br/>Margin</sub></td>
-<td width="25%" align="center"><h3>Multi-frame</h3><sub>Enrollment<br/>Quality Gate</sub></td>
-<td width="25%" align="center"><h3>End-to-end</h3><sub>AI · API<br/>DB · UI</sub></td>
+<td width="25%" align="center"><h3>여러 장 등록</h3><sub>한 장의 흔들림에<br/>덜 민감하게</sub></td>
+<td width="25%" align="center"><h3>흐린 얼굴 거절</h3><sub>낮은 품질은<br/>판정 전에 차단</sub></td>
+<td width="25%" align="center"><h3>애매하면 보류</h3><sub>비슷한 후보는<br/>자동 출석 방지</sub></td>
+<td width="25%" align="center"><h3>관리 화면까지</h3><sub>인식 · API<br/>DB · UI 연결</sub></td>
 </tr>
 </table>
 
