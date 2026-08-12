@@ -9,13 +9,23 @@
 ![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-0EA5E9?logo=react&logoColor=white)
 ![Status](https://img.shields.io/badge/Public-Engineering%20Case%20Study-D97706)
 
-[핵심 설계](#세-가지-핵심-판단) · [시스템 구조](#system-architecture) · [개인정보 경계](#privacy--public-scope) · [확장 계획](docs/LEARNING_ROADMAP.md)
+[핵심 설계](#세-가지-핵심-판단) · [시스템 구조](#시스템-구조) · [개인정보 경계](#개인정보와-공개-범위) · [확장 계획](docs/LEARNING_ROADMAP.md)
 
 </div>
 
 ---
 
-## 프로젝트 개요
+## 이 프로젝트는
+
+얼굴 인식 모델의 top-1 결과를 출석 처리에 바로 사용하면 흐린 등록 사진, 비슷한 후보와 중복 검출 때문에 잘못된 기록이 남을 수 있습니다. 이 프로젝트는 RetinaFace와 ArcFace를 실제 출결 흐름에 연결하면서 등록 품질, 모호한 식별과 기록 일관성을 함께 다룬 full-stack case study입니다.
+
+등록 단계에서는 여러 frame을 수집하고 품질 기준을 통과한 sample로 representation을 구성합니다. 식별 단계에서는 similarity threshold뿐 아니라 top-2 margin도 확인해 애매한 후보를 거절합니다. 승인된 결과는 FastAPI, MariaDB와 React 관리 화면을 거쳐 IN/OUT 기록으로 저장됩니다.
+
+### 시작한 이유
+
+모델 demo와 운영 시스템 사이에는 판정 기준, 데이터 모델, 예외 처리와 개인정보 경계가 있습니다. 얼굴을 찾고 이름을 반환하는 기능만으로는 출결 업무를 안정적으로 처리할 수 없습니다. 인식 결과를 보수적인 decision rule과 application workflow로 연결하는 과정을 정리하기 위해 만들었습니다.
+
+## 상세 설명
 
 | 구분 | 내용 |
 |---|---|
@@ -27,7 +37,7 @@
 
 `0.68` threshold와 `0.03` margin은 구현 예시값입니다. 실제 환경에는 별도 데이터로 FAR/FRR calibration이 필요합니다.
 
-## Product problem
+## 제품으로 연결할 때 생기는 문제
 
 얼굴 인식 demo와 출결 시스템 사이에는 여러 engineering gap이 있습니다.
 
@@ -37,7 +47,7 @@
 - 인식 결과를 IN/OUT 상태·사용자·로그 모델과 연결해야 합니다.
 - 얼굴 image와 embedding은 생체정보이므로 공개·보관 경계가 필요합니다.
 
-## System architecture
+## 시스템 구조
 
 ```mermaid
 flowchart LR
@@ -66,7 +76,7 @@ top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 ident
 
 식별 성공을 끝으로 두지 않고 최근 기록을 기준으로 IN/OUT을 전환하고, 사용자·embedding·attendance log를 관계형 모델로 분리했습니다.
 
-## Product capabilities
+## 구현 기능
 
 - multi-frame enrollment와 quality filtering
 - single / multi-face identification
@@ -77,7 +87,7 @@ top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 ident
 - 관리자용 사용자·로그 화면
 - 환경변수 기반 DB·frontend API configuration
 
-## Engineering decisions
+## 주요 설계 결정
 
 | 결정 | 이유 | 남은 검증 |
 |---|---|---|
@@ -87,7 +97,7 @@ top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 ident
 | liveness를 보조 신호로 한정 | 단순 blink/smile의 보안 한계 인정 | 전문 anti-spoofing 평가 |
 | image·embedding 공개 제외 | 생체정보 노출 방지 | 보관·삭제 정책 |
 
-## Privacy & public scope
+## 개인정보와 공개 범위
 
 이 저장소는 **engineering case study**를 공개합니다. 원본 작업 환경에는 실제 얼굴 image, embedding, DB 설정과 운영 configuration이 포함되어 있어 application source snapshot과 개인정보성 artifact는 공개하지 않았습니다.
 
@@ -105,4 +115,5 @@ top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 ident
 사용자 흐름, 등록·식별 전략, decision rule, API·DB·frontend 통합과 반복 검증을 맡았습니다. threshold의 해석 범위와 생체정보를 포함한 비공개 경계를 별도로 검토했습니다.
 
 [모델 평가·보안·운영 확장 로드맵](docs/LEARNING_ROADMAP.md)
+
 
