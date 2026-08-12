@@ -1,8 +1,8 @@
-![Face Attendance System — project hero](assets/project-hero.svg)
+![Face Attendance System project hero](assets/project-hero.svg)
 
 <div align="center">
 
-**얼굴 등록·식별·출결 기록·관리 화면을 연결한 Full-Stack Computer Vision 시스템**
+**RetinaFace·ArcFace 인식 파이프라인을 multi-frame enrollment, ambiguity rejection, FastAPI·MariaDB·React 출결 workflow로 연결한 full-stack engineering case study**
 
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)
 ![Vision](https://img.shields.io/badge/Vision-RetinaFace%20%2B%20ArcFace-4F46E5)
@@ -15,26 +15,17 @@
 
 ---
 
-## 30초 요약
+## 프로젝트 개요
 
-| 질문 | 답 |
+| 구분 | 내용 |
 |---|---|
-| **문제** | 단일 이미지 얼굴 비교를 실제 출결 workflow로 어떻게 확장할까? |
-| **검출·표현** | RetinaFace detection + ArcFace embedding |
-| **판정** | 가장 닮은 후보를 찾되 두 후보가 비슷하면 출석 처리하지 않음 |
-| **품질 방어** | 다중 프레임, sharpness filter, centroid 후보 + sample 재검증 |
-| **제품 연결** | FastAPI · SQLAlchemy · MariaDB · React · Vite |
+| **Vision** | RetinaFace detection과 ArcFace embedding으로 얼굴 영역과 identity representation을 생성 |
+| **Enrollment** | multi-frame quality filtering 후 centroid candidate와 원본 sample을 함께 보존 |
+| **Decision rule** | top-1 threshold와 top-2 margin을 동시에 적용해 ambiguous match를 reject |
+| **Application** | FastAPI, SQLAlchemy, MariaDB, React/Vite로 등록·식별·IN/OUT 기록·관리 화면을 연결 |
+| **Public scope** | 생체정보와 운영 설정을 제외한 architecture, decision rule, trade-off 중심 case study |
 
-<table>
-<tr>
-<td width="25%" align="center"><h3>여러 장 등록</h3><sub>한 장의 흔들림에<br/>덜 민감하게</sub></td>
-<td width="25%" align="center"><h3>흐린 얼굴 거절</h3><sub>낮은 품질은<br/>판정 전에 차단</sub></td>
-<td width="25%" align="center"><h3>애매하면 보류</h3><sub>비슷한 후보는<br/>자동 출석 방지</sub></td>
-<td width="25%" align="center"><h3>관리 화면까지</h3><sub>인식 · API<br/>DB · UI 연결</sub></td>
-</tr>
-</table>
-
-> 핵심은 “가장 비슷한 사람을 고르는 것”이 아니라, **모호하면 거절하고 운영 기록까지 일관되게 남기는 것**입니다.
+`0.68` threshold와 `0.03` margin은 구현 예시값입니다. 실제 환경에는 별도 데이터로 FAR/FRR calibration이 필요합니다.
 
 ## Product problem
 
@@ -109,8 +100,9 @@ top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 ident
 
 실제 운영에는 명시적 동의, 접근 통제, 암호화, 보관 기간, 삭제 절차와 FAR/FRR·spoof robustness 검증이 추가로 필요합니다.
 
-## Ownership & collaboration
+## 기여 범위
 
-사용자 흐름, 등록·식별 전략, 판정 rule, API·DB·frontend 통합과 반복 디버깅을 주도했습니다. AI 코딩 도구는 구현 속도와 오류 해결에 활용했고, threshold의 의미와 공개·개인정보 경계는 직접 검토했습니다.
+사용자 흐름, 등록·식별 전략, decision rule, API·DB·frontend 통합과 반복 검증을 맡았습니다. threshold의 해석 범위와 생체정보를 포함한 비공개 경계를 별도로 검토했습니다.
 
 [모델 평가·보안·운영 확장 로드맵](docs/LEARNING_ROADMAP.md)
+
