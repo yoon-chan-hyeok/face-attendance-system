@@ -1,13 +1,13 @@
-![Face Attendance System project hero](assets/project-hero.svg)
+![Face Attendance System Hardening project hero](assets/project-hero.svg)
 
 <div align="center">
 
-**얼굴 인식 결과를 등록 품질, 모호성 거절과 IN/OUT 기록으로 연결한 출결 시스템 설계 case study**
+**기존 얼굴 출결 시스템의 등록 품질, 모호성 거절과 IN/OUT 업무 흐름을 고도화한 프로젝트**
 
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)
 ![Vision](https://img.shields.io/badge/Vision-RetinaFace%20%2B%20ArcFace-4F46E5)
 ![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-0EA5E9?logo=react&logoColor=white)
-![Status](https://img.shields.io/badge/Public-Design%20Case%20Study-D97706)
+![Status](https://img.shields.io/badge/Public-System%20Hardening-D97706)
 
 [핵심 설계](#핵심-설계) · [시스템 구조](#시스템-구조) · [공개 범위](#공개-범위) · [미구현 검증](docs/LEARNING_ROADMAP.md)
 
@@ -15,21 +15,29 @@
 
 ---
 
-> 이 공개 저장소는 설계 case study입니다. 실제 얼굴 image, embedding, DB 설정과 application source snapshot은 포함하지 않습니다.
+> 기존 출결 애플리케이션을 분석하고 식별 판정과 업무 흐름을 고도화한 작업입니다. 실제 얼굴 image, embedding, DB 설정과 application source snapshot은 포함하지 않습니다.
+
+## 프로젝트 맥락
+
+| 구분 | 내용 |
+|---|---|
+| 작업 성격 | 기존 얼굴 출결 시스템 고도화 |
+| 담당 | 등록 품질, 식별 판정, IN/OUT 상태 전환, API·DB·UI 연결 개선 |
+| 공개 범위 | architecture, data flow, decision rule과 검증 계획 |
 
 ## 운영 제약
 
 얼굴 인식 모델의 top-1 결과를 출석 처리에 바로 사용하면 흐린 등록 사진, 비슷한 후보와 중복 검출 때문에 잘못된 기록이 남을 수 있습니다. 모델이 이름을 반환해도 사용자, 최근 출결 상태와 로그에 연결되지 않으면 업무가 끝나지 않습니다. 생체정보를 다루므로 불확실한 결과를 승인하지 않는 기준과 데이터 공개 범위도 필요합니다.
 
-## 설계 질문
+## 고도화 질문
 
-> 얼굴 인식 결과를 출결 기록에 연결하면서, 등록 품질이 낮거나 후보가 모호한 경우에는 잘못된 승인을 막을 수 있는가?
+> 기존 얼굴 출결 흐름에서 등록 품질이 낮거나 후보가 모호할 때 잘못된 승인을 줄이고, 식별 결과를 안정적으로 IN/OUT 기록까지 연결할 수 있는가?
 
-이 저장소는 운영 성능을 검증한 제품이 아니라 시스템 설계 case study입니다. 공개 범위에서는 RetinaFace와 ArcFace를 multi-frame enrollment, ambiguity rejection, FastAPI·MariaDB·React 출결 흐름으로 연결하고, 아직 검증하지 않은 기준을 분리해 기록했습니다.
+이 저장소는 완성 제품 전체를 공개한 저장소가 아니라 고도화 과정과 판단 기준을 정리한 case study입니다. 기존 흐름을 분석한 뒤 RetinaFace와 ArcFace 기반 식별에 multi-frame enrollment와 ambiguity rejection을 보강하고, FastAPI·MariaDB·React 출결 흐름까지 연결했습니다. 아직 운영 데이터로 검증하지 않은 기준은 따로 표시했습니다.
 
 ## 접근과 선택 이유
 
-등록, 식별, 승인, IN/OUT 상태 전환을 하나의 흐름으로 봤습니다. 여러 frame으로 등록 품질을 보완하고, top-1 점수와 top-2 margin을 함께 확인하며, 불확실한 결과는 출석으로 기록하지 않고 재시도하도록 설계했습니다.
+기존 시스템을 등록, 식별, 승인, IN/OUT 상태 전환으로 나눠 병목을 확인했습니다. 여러 frame으로 등록 품질을 보완하고, top-1 점수와 top-2 margin을 함께 확인하며, 불확실한 결과는 출석으로 기록하지 않고 재시도하도록 바꿨습니다.
 
 ### 왜 한 장이 아니라 여러 frame을 등록했는가
 
@@ -72,7 +80,7 @@ Top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 승�
 
 승인된 identity는 최근 기록을 기준으로 IN/OUT 상태를 전환합니다. 사용자, embedding과 attendance log는 관계형 모델로 분리합니다.
 
-## 설계 범위
+## 고도화 범위
 
 - multi-frame enrollment와 quality filtering
 - single·multi-face identification과 중복 정리
@@ -82,12 +90,12 @@ Top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 승�
 
 ## 공개 범위
 
-공개 내용은 architecture, data flow, decision rule, 기능 범위와 trade-off입니다. 실제 얼굴 image와 embedding은 생체정보이므로 제외했습니다.
+공개 내용은 기존 시스템에서 개선한 architecture, data flow, decision rule, 기능 범위와 trade-off입니다. 실제 얼굴 image와 embedding은 생체정보이므로 제외했습니다.
 
 실제 운영에는 사용자 동의, 접근 통제, 암호화, 보관·삭제 정책이 필요합니다. FAR과 FRR calibration, spoof robustness, 동시성, 권한과 배포 검증도 현재 공개 저장소에서 완료하지 않았습니다.
 
 ## 기여
 
-사용자 흐름, 등록·식별 전략, decision rule, API·DB·frontend 연결과 개인정보 공개 경계를 설계했습니다.
+기존 출결 시스템의 사용자 흐름과 식별 과정을 분석하고, multi-frame 등록, ambiguity rejection, IN/OUT 상태 전환과 API·DB·frontend 연결을 고도화했습니다. 생체정보가 포함된 원본과 공개 가능한 설계 자료의 경계도 정했습니다.
 
 [미구현 평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)
