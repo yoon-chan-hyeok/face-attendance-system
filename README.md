@@ -4,16 +4,15 @@
 
 **기존 얼굴 출결 시스템에서 흐린 등록 사진과 닮은 얼굴로 생기는 오승인을 줄이도록 식별 흐름을 고도화했습니다.**
 
-![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)
-![Vision](https://img.shields.io/badge/Vision-RetinaFace%20%2B%20ArcFace-4F46E5)
-![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-0EA5E9?logo=react&logoColor=white)
-![Status](https://img.shields.io/badge/Status-Hardening%20Case%20Study-D97706)
+![Scope](https://img.shields.io/badge/Public%20Scope-Design%20Case%20Study-4F46E5)
+![Source](https://img.shields.io/badge/Application%20Source-Private-5B6573)
+![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
 [변경 내용](#변경-내용) · [판정 흐름](#판정-흐름) · [시스템 범위](#시스템-범위) · [남은 검증](#남은-검증)
 
 </div>
 
-> 이 저장소는 기존 시스템을 어떻게 고도화했는지 정리한 case study입니다. 실제 얼굴 image, embedding, DB 설정과 application source는 포함하지 않습니다.
+> 이 저장소는 기존 시스템을 어떻게 고도화했는지 정리한 설계 사례입니다. 실제 얼굴 image, embedding, DB 설정과 application source는 포함하지 않으므로 실행 가능한 공개 구현으로 보지 않아야 합니다.
 
 ## 문제
 
