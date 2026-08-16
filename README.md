@@ -1,106 +1,73 @@
-![Face Attendance System Hardening project hero](assets/project-hero.svg)
+![Face Attendance System Hardening](assets/project-hero.svg)
 
 <div align="center">
 
-**기존 얼굴 출결 시스템에서 흐린 등록 사진과 닮은 얼굴로 생기는 오승인을 줄이도록 등록·식별 흐름을 고도화한 프로젝트**
+**기존 얼굴 출결 시스템에서 흐린 등록 사진과 닮은 얼굴로 생기는 오승인을 줄이도록 식별 흐름을 고도화했습니다.**
 
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?logo=fastapi&logoColor=white)
 ![Vision](https://img.shields.io/badge/Vision-RetinaFace%20%2B%20ArcFace-4F46E5)
 ![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-0EA5E9?logo=react&logoColor=white)
-![Status](https://img.shields.io/badge/Public-System%20Hardening-D97706)
+![Status](https://img.shields.io/badge/Status-Hardening%20Case%20Study-D97706)
 
-[핵심 설계](#핵심-설계) · [시스템 구조](#시스템-구조) · [공개 범위](#공개-범위) · [미구현 검증](docs/LEARNING_ROADMAP.md)
+[변경 내용](#변경-내용) · [판정 흐름](#판정-흐름) · [시스템 범위](#시스템-범위) · [남은 검증](#남은-검증)
 
 </div>
 
----
+> 이 저장소는 기존 시스템을 어떻게 고도화했는지 정리한 case study입니다. 실제 얼굴 image, embedding, DB 설정과 application source는 포함하지 않습니다.
 
-> 기존 출결 애플리케이션을 분석하고 식별 판정과 업무 흐름을 고도화한 작업입니다. 실제 얼굴 image, embedding, DB 설정과 application source snapshot은 포함하지 않습니다.
+## 문제
 
-## 프로젝트 맥락
+기존 시스템은 한 장의 등록 사진과 similarity threshold를 중심으로 사용자를 식별했습니다. 실제 테스트에서는 조명, 명암과 촬영 위치가 바뀌었을 때 닮은 사람이 잘못 승인되는 사례가 있었습니다.
 
-| 구분 | 내용 |
-|---|---|
-| 작업 성격 | 기존 얼굴 출결 시스템 고도화 |
-| 담당 | 등록 품질, 식별 판정과 API·DB·UI 연결 개선 방향 설계 |
-| 구현 방식 | Codex를 활용해 기능 구현과 반복 검증을 진행 |
-| 공개 범위 | architecture, data flow, decision rule과 검증 계획 |
+등록과 출퇴근 단계에 모두 많은 frame을 사용하면 응답 시간이 길어졌고, 한 화면에서 같은 사용자가 여러 detection에 중복 연결되는 문제도 있었습니다.
 
-## 운영 제약
+## 변경 내용
 
-얼굴 인식 모델의 top-1 결과를 출석 처리에 바로 사용하면 흐린 등록 사진, 비슷한 후보와 중복 검출 때문에 잘못된 기록이 남을 수 있습니다. 실제 테스트에서도 닮은 얼굴이 조명, 대비와 촬영 위치에 따라 잘못 승인되는 사례가 있었습니다. 모델이 이름을 반환해도 사용자, 최근 출결 상태와 로그에 연결되지 않으면 업무가 끝나지 않습니다. 생체정보를 다루므로 불확실한 결과를 승인하지 않는 기준과 데이터 공개 범위도 필요합니다.
+| 기존 방식 | 변경 | 판단 근거 |
+|---|---|---|
+| Single-image enrollment | Multi-frame 등록 + quality filtering | 흐린 한 장이 사용자 특징 전체를 결정하지 않도록 했습니다. |
+| Centroid-only matching | Centroid 후보 탐색 + 등록 sample 재비교 | 평균값이 가리는 조명과 각도 차이를 개별 sample에서 다시 확인했습니다. |
+| Absolute threshold | Top-1 threshold + top-2 margin | 두 후보가 비슷하면 최고 점수가 기준을 넘어도 승인하지 않았습니다. |
+| Detection별 독립 식별 | User-level dedup | 여러 얼굴 입력에서 한 사용자가 중복 승인되는 것을 막았습니다. |
+| 등록과 출결 모두 다중 추론 | 등록은 풍부하게, 출결은 가볍게 | 반복 사용되는 출결 단계의 지연을 줄였습니다. |
 
-## 고도화 질문
+구현 과정에서 사용한 예시 기준은 sharpness 35, cosine-distance threshold 0.68, top-1/top-2 margin 0.03입니다. 운영 데이터로 calibration을 끝낸 값은 아닙니다.
 
-> 기존 얼굴 출결 흐름에서 등록 품질이 낮거나 후보가 모호할 때 잘못된 승인을 줄이고, 식별 결과를 안정적으로 IN/OUT 기록까지 연결할 수 있는가?
+## 판정 흐름
 
-이 저장소는 완성 제품 전체를 공개한 저장소가 아니라 고도화 과정과 판단 기준을 정리한 case study입니다. 기존 흐름을 분석한 뒤 RetinaFace와 ArcFace 기반 식별에 multi-frame enrollment와 ambiguity rejection을 보강하고, FastAPI·MariaDB·React 출결 흐름까지 연결했습니다. 아직 운영 데이터로 검증하지 않은 기준은 따로 표시했습니다.
-
-## 접근과 선택 이유
-
-기존 시스템을 등록, 식별, 승인과 출결 기록으로 나눠 병목을 확인했습니다. 처음에는 top-1 threshold로만 승인 여부를 판단했지만, 닮은 후보가 기준을 넘는 사례를 확인한 뒤 top-1과 top-2의 차이까지 보는 방식으로 바꿨습니다. 여러 frame으로 등록 품질을 보완하고 불확실한 결과는 기록하지 않고 재시도하도록 설계했습니다.
-
-식별에서는 한 사람의 평균 embedding만으로 최종 승인하지 않았습니다. 먼저 centroid로 가까운 후보를 좁힌 뒤, 등록 때 보관한 개별 sample과 다시 비교하도록 나눴습니다. 여러 얼굴이 한 화면에 잡힐 때 같은 사용자가 중복 승인되지 않도록 user 단위로 결과를 정리했습니다.
-
-### 왜 한 장이 아니라 여러 frame을 등록했는가
-
-한 장의 등록 사진은 흐림, 각도와 표정에 크게 좌우됩니다. 짧은 구간에서 여러 frame을 받고 품질 기준을 통과한 sample만 남겨, 우연히 잘못 잡힌 한 장이 사용자 특징 전체를 결정하지 않도록 했습니다. 선명도 기준 약 `35`는 구현 과정에서 사용한 예시값이며, 운영 환경에서 보정이 끝난 기준은 아닙니다.
-
-등록과 출결 단계에 모두 많은 embedding을 사용하면 응답 시간이 늘어났습니다. 그래서 등록 단계에는 더 다양한 sample을 남기고, 반복 사용되는 출결 단계는 가볍게 유지하는 쪽으로 계산량을 나눴습니다.
-
-### 왜 top-1 threshold만 사용하지 않았는가
-
-최고 점수가 기준을 넘더라도 두 후보의 점수가 비슷하면 누구인지 확신하기 어렵습니다. Top-1과 top-2의 차이도 함께 확인해 모호한 경우는 기록하지 않고 재시도하도록 설계했습니다. 잘못된 출석 한 건의 수정 비용이 재촬영보다 크다는 판단을 반영했습니다.
-
-### 왜 모델과 출결 업무를 함께 설계했는가
-
-얼굴을 찾고 이름을 반환하는 demo만으로는 출결 상태가 완성되지 않습니다. 식별 결과를 최근 IN/OUT 기록, 사용자와 로그에 연결해야 실제 업무 흐름이 됩니다. 그래서 vision model의 출력 형식부터 API와 DB 상태 전환까지 한 흐름으로 보았습니다.
-
-## 시스템 구조
-
-```mermaid
+~~~mermaid
 flowchart LR
     C["Camera frames"] --> D["RetinaFace<br/>detection"]
     D --> Q["Quality gate"]
     Q --> E["ArcFace<br/>embeddings"]
-    E --> M["Centroid candidate<br/>and sample check"]
+    E --> M["Centroid candidate<br/>sample rerank"]
     M --> G{"Threshold 0.68<br/>Margin 0.03"}
     G -->|accept| A["Attendance service"]
     G -->|uncertain| R["Reject or retry"]
-    A --> DB["Users, embeddings<br/>and logs"]
-    DB --> UI["Admin dashboard"]
-```
+    A --> U["User-level dedup"]
+    U --> DB["Users and<br/>attendance logs"]
+    DB --> UI["React admin UI"]
+~~~
 
-## 핵심 설계
+모델이 이름을 반환하는 것으로 끝내지 않고 식별 결과를 사용자, 최근 IN/OUT 기록과 로그에 연결했습니다. 모호한 결과는 출결로 기록하지 않고 재촬영하도록 했습니다.
 
-### 등록 품질
+## 시스템 범위
 
-1초 동안 여러 frame을 모으고 선명도 기준을 통과한 sample만 사용합니다. Centroid는 빠르게 후보를 찾는 데 쓰고, 최종 단계에서는 등록 sample과 다시 비교해 조명·각도에 따른 개인 내 변화를 반영합니다.
-
-### 모호한 후보 거절
-
-Top-1 similarity가 threshold를 넘더라도 top-2와 차이가 작으면 승인하지 않습니다. 구현 예시값은 threshold `0.68`, margin `0.03`이며 운영 기준으로 검증된 값은 아닙니다.
-
-### 업무 기록 연결
-
-승인된 identity는 최근 기록을 기준으로 IN/OUT 상태를 전환합니다. 사용자, embedding과 attendance log는 관계형 모델로 분리합니다.
-
-## 고도화 범위
-
-- multi-frame enrollment와 quality filtering
-- single·multi-face identification과 user-level dedup
-- threshold와 top-2 margin 기반 rejection
-- smile·blink liveness 보조 실험. 전체 운영 검증은 완료하지 않음
-- FastAPI, SQLAlchemy, MariaDB와 React 관리 흐름
+- RetinaFace detection과 ArcFace embedding
+- FastAPI API와 SQLAlchemy, MariaDB data model
+- React, Vite, TypeScript 관리 화면
+- 등록, single/multi-face 식별, 출결 기록과 runtime log
+- Smile/blink liveness 보조 실험
 
 ## 공개 범위
 
-공개 내용은 기존 시스템에서 개선한 architecture, data flow, decision rule, 기능 범위와 trade-off입니다. 실제 얼굴 image와 embedding은 생체정보이므로 제외했습니다.
+공개 저장소에는 architecture, data flow, decision rule과 기능 범위를 정리했습니다. 생체정보가 포함된 원본 image와 embedding, 실행 가능한 application snapshot은 공개하지 않았습니다.
 
-실제 운영에는 사용자 동의, 접근 통제, 암호화, 보관·삭제 정책이 필요합니다. FAR과 FRR calibration, spoof robustness, 동시성, 권한과 배포 검증도 현재 공개 저장소에서 완료하지 않았습니다.
+## 남은 검증
 
-## 기여
+- FAR, FRR 기반 threshold와 margin calibration
+- 사진과 영상 재생 공격에 대한 liveness 검증
+- 동시 요청, 권한, 암호화와 배포 설정
+- 사용자 동의와 생체정보 보관, 삭제 정책
 
-기존 출결 시스템의 사용자 흐름과 식별 과정을 분석하고, 닮은 얼굴의 오승인 사례를 바탕으로 multi-frame 등록, sample 재비교와 ambiguity rejection 방향을 설계했습니다. API·DB·frontend 연결과 테스트에는 Codex를 활용했으며, 생체정보가 포함된 원본과 공개 가능한 설계 자료의 경계도 정했습니다. 기여 범위는 기존 시스템 이후의 고도화 작업입니다.
-
-[미구현 평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)
+[Evaluation and deployment roadmap](docs/LEARNING_ROADMAP.md)
