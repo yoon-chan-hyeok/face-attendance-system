@@ -16,7 +16,7 @@ async def toggle_liveness(request: ToggleRequest):
     
     - password: Admin password
     - enabled: true to enable, false to disable
-    - Password is automatically set on first call
+    - Password must match LIVENESS_ADMIN_PASSWORD from the environment
     """
     success = liveness_config_service.toggle_liveness(
         admin_password=request.password,

@@ -5,7 +5,6 @@ import Layout from '../components/layout/Layout';
 // Lazy load pages
 const HomePage = React.lazy( () => import('../pages/HomePage') );
 const RegisterPage = React.lazy( () => import('../pages/RegisterPage') );
-const LoginPage = React.lazy( () => import('../pages/LoginPage') );
 const LogsPage = React.lazy( () => import('../pages/LogsPage') );
 const DbPage = React.lazy( () => import('../pages/DbPage') );
 const MultiIdentifyPage = React.lazy( () => import('../pages/MultiIdentifyPage') );
@@ -24,10 +23,6 @@ const AppRoutes = () => {
         {
           path: '/register',
           element: <RegisterPage />,
-        },
-        {
-          path: '/login',
-          element: <LoginPage />,
         },
         {
           path: '/logs',

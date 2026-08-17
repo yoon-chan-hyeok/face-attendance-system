@@ -12,6 +12,5 @@ def health_check():
     """
     return {
         "status": "healthy",
-        "service": "DeepFace API"
+        "service": "Face Attendance API"
     }
-

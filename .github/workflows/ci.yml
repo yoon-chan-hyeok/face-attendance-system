@@ -14,6 +14,13 @@ jobs:
           python-version: "3.12"
       - name: Compile Python source
         run: python -m compileall -q backend/app
+      - name: Install lightweight test dependencies
+        run: python -m pip install "sqlalchemy>=2.0,<3" "pydantic-settings>=2,<3"
+      - name: Run backend unit tests
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+          PYTHONPATH: backend
+        run: python -m unittest discover -s backend/tests -p "test_*.py" -v
 
   frontend-build:
     runs-on: ubuntu-latest

@@ -1,5 +1,4 @@
 # app/core/config.py
-import os
 from typing import Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,6 +9,7 @@ class Settings(BaseSettings):
     DATABASE_URL_DEV: Optional[str] = None
     DATABASE_URL_PROD: Optional[str] = None
     LIVENESS_ADMIN_PASSWORD: Optional[str] = None  # Liveness admin password
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     
 
     # 2. Final variable to use in code

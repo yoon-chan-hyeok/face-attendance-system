@@ -1,11 +1,10 @@
 # app/services/liveness_service.py
 import logging
 import json
-import os
+import hmac
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
-import hashlib
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,6 @@ class LivenessConfigService:
         return {
             "enabled": False,
             "threshold": 0.5,
-            "admin_password_hash": None,  # SHA256 hash storage
             "toggle_history": []
         }
     
@@ -44,38 +42,13 @@ class LivenessConfigService:
             logger.error(f"Failed to save config file: {e}")
             raise
     
-    def _hash_password(self, password: str) -> str:
-        """Hash password"""
-        return hashlib.sha256(password.encode()).hexdigest()
-    
-    def set_admin_password(self, password: str):
-        """Set admin password (for initial setup)"""
-        self.config["admin_password_hash"] = self._hash_password(password)
-        self._save_config()
-        logger.info("Admin password has been set.")
-    
     def verify_admin_password(self, password: str) -> bool:
-        """Verify admin password"""
-        if not self.config.get("admin_password_hash"):
-            # If password not set, use password from .env
-            if settings.LIVENESS_ADMIN_PASSWORD:
-                # Use password from .env for initial setup
-                expected_password = settings.LIVENESS_ADMIN_PASSWORD
-                if password == expected_password:
-                    self.set_admin_password(password)
-                    logger.info("Admin password loaded from environment variable and set.")
-                    return True
-                else:
-                    logger.warning("Password does not match LIVENESS_ADMIN_PASSWORD in .env.")
-                    return False
-            else:
-                # If not in .env either, use first input as password
-                self.set_admin_password(password)
-                logger.info("First password input set as initial admin password.")
-                return True
-        
-        password_hash = self._hash_password(password)
-        return password_hash == self.config.get("admin_password_hash")
+        """Verify the password configured through the environment."""
+        expected_password = settings.LIVENESS_ADMIN_PASSWORD
+        if not expected_password:
+            logger.error("LIVENESS_ADMIN_PASSWORD is not configured; liveness changes are disabled.")
+            return False
+        return hmac.compare_digest(password, expected_password)
     
     def toggle_liveness(self, admin_password: str, enabled: bool) -> bool:
         """

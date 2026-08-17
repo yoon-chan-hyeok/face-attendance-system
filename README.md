@@ -7,6 +7,7 @@
 ![Source](https://img.shields.io/badge/Application%20Source-Public-16803A)
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-009688)
 ![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-646CFF)
+![CI](https://github.com/yoon-chan-hyeok/face-attendance-system/actions/workflows/ci.yml/badge.svg)
 ![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
 [구현 범위](#구현-범위) · [판정 흐름](#판정-흐름) · [실행](#로컬-실행) · [검증 경계](#검증-경계)
@@ -89,7 +90,7 @@ python -m pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-`.env`의 DB 계정과 `LIVENESS_ADMIN_PASSWORD`는 로컬 값으로 변경해야 합니다. API 문서는 `http://127.0.0.1:8000/docs`에서 확인할 수 있습니다.
+`.env`의 DB 계정과 `LIVENESS_ADMIN_PASSWORD`는 로컬 값으로 변경해야 합니다. 비밀번호가 없으면 라이브니스 설정 변경을 거부합니다. 허용할 프론트엔드 주소는 `CORS_ORIGINS`에서 지정합니다. API 문서는 `http://127.0.0.1:8000/docs`에서 확인할 수 있습니다.
 
 Blink 라이브니스를 사용하려면 MediaPipe Face Landmarker 모델을 `backend/models/face_landmarker.task`에 별도로 배치해야 합니다. 모델 파일은 저장소에 포함되지 않습니다.
 
@@ -106,7 +107,9 @@ npm run dev
 
 ## 검증 경계
 
-확인된 검증은 Python 소스 구문 검사와 TypeScript/Vite 프로덕션 빌드입니다. 얼굴 데이터셋 기반 accuracy, FAR, FRR, ROC, 지연시간 비교 수치는 현재 저장소에 없으므로 성능 성과로 주장하지 않습니다.
+확인된 검증은 Python 소스 구문 검사, 출결 IN/OUT 전환 unit test와 TypeScript/Vite 프로덕션 빌드입니다. 얼굴 데이터셋 기반 accuracy, FAR, FRR, ROC, 지연시간 비교 수치는 현재 저장소에 없으므로 성능 성과로 주장하지 않습니다.
+
+현재 공개본은 로컬 연구용 prototype입니다. 사용자·로그 관리 API의 인증, HTTPS, 임베딩 암호화와 보관 정책은 포함하지 않았으므로 외부 네트워크에 그대로 공개하면 안 됩니다.
 
 추가로 필요한 검증과 운영 항목은 [평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)에 분리했습니다.
 
@@ -116,6 +119,6 @@ npm run dev
 
 - 실제 사용자 얼굴 이미지와 `.npy` 임베딩
 - `.env`와 DB 접속 정보
-- 라이브니스 관리자 해시와 변경 이력
+- 라이브니스 관리자 비밀번호와 변경 이력
 - DeepFace/MediaPipe 모델 가중치
 - 가상환경, 로그와 빌드 산출물

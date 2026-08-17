@@ -9,20 +9,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import health, face, attendance, liveness, logs
 from app.core.dependencies import face_service
+from app.core.config import settings
 from app.core.log_store import setup_log_capture
 
 app = FastAPI(
-    title="DeepFace API",
-    description="Face Analysis API Service",
+    title="Face Attendance API",
+    description="Multi-frame face enrollment, ambiguity-aware identification, and attendance logging",
     version="1.0.0"
 )
 
 # CORS settings
-origins = [
-    "http://localhost:5173",  # React/Vite Frontend
-    "http://127.0.0.1:5173",
-    "*" # Allow all origins for development convenience (restrict in production)
-]
+origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,11 +52,13 @@ app.include_router(logs.router, prefix="/api/v1/logs")
 def root():    
     return {
         "status": 200,
-        "message": "DeepFace API",
+        "message": "Face Attendance API",
         "docs": "/docs",
         "endpoints": {
             "health": "/api/v1/health",
-            "face_emotion": "/api/v1/face/analyze/emotion",
-            "face_full": "/api/v1/face/analyze/full"
+            "register": "/api/v1/face/register-v2",
+            "identify": "/api/v1/face/identify",
+            "attendance": "/api/v1/attendance/check-in-out-v4",
+            "liveness": "/api/v1/liveness/status"
         }
     }
