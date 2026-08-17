@@ -20,6 +20,8 @@
 
 등록과 출퇴근 단계에 모두 많은 frame을 사용하면 응답 시간이 길어졌고, 한 화면에서 같은 사용자가 여러 detection에 중복 연결되는 문제도 있었습니다.
 
+이 작업은 얼굴 인식 model을 새로 학습한 연구가 아닙니다. 기존 시스템에서 확인한 failure case를 바탕으로 등록, 후보 검색과 승인 정책을 고친 system hardening 작업입니다.
+
 ## 변경 내용
 
 | 기존 방식 | 변경 | 판단 근거 |
@@ -34,7 +36,7 @@
 
 ## 판정 흐름
 
-~~~mermaid
+```mermaid
 flowchart LR
     C["Camera frames"] --> D["RetinaFace<br/>detection"]
     D --> Q["Quality gate"]
@@ -46,9 +48,11 @@ flowchart LR
     A --> U["User-level dedup"]
     U --> DB["Users and<br/>attendance logs"]
     DB --> UI["React admin UI"]
-~~~
+```
 
-모델이 이름을 반환하는 것으로 끝내지 않고 식별 결과를 사용자, 최근 IN/OUT 기록과 로그에 연결했습니다. 모호한 결과는 출결로 기록하지 않고 재촬영하도록 했습니다.
+먼저 centroid로 사용자 후보를 줄인 뒤 해당 사용자의 등록 sample과 query를 다시 비교합니다. Top-1이 threshold를 넘더라도 top-2와의 차이가 작으면 승인하지 않습니다.
+
+모델이 이름을 반환하는 것으로 끝내지 않고 식별 결과를 사용자, 최근 IN/OUT 기록과 runtime log에 연결했습니다. 모호한 결과는 출결로 기록하지 않고 재촬영하도록 했습니다.
 
 ## 시스템 범위
 
@@ -58,15 +62,26 @@ flowchart LR
 - 등록, single/multi-face 식별, 출결 기록과 runtime log
 - Smile/blink liveness 보조 실험
 
+위 항목은 비공개 application의 구성 범위입니다. 해당 source가 이 저장소에 포함됐다는 뜻은 아닙니다.
+
 ## 공개 범위
 
-공개 저장소에는 architecture, data flow, decision rule과 기능 범위를 정리했습니다. 생체정보가 포함된 원본 image와 embedding, 실행 가능한 application snapshot은 공개하지 않았습니다.
+| 포함 | 미포함 |
+|---|---|
+| Architecture, data flow, decision rule | 실제 얼굴 image와 embedding |
+| 기존 방식과 변경 내용 | 실행 가능한 application source |
+| 예시 threshold와 margin | DB credential과 deployment config |
+| 후속 평가 계획 | FAR, FRR와 latency 결과 |
 
 ## 남은 검증
 
 - FAR, FRR 기반 threshold와 margin calibration
+- Single-frame 대비 multi-frame enrollment ablation
+- Centroid-only 대비 sample rerank ablation
 - 사진과 영상 재생 공격에 대한 liveness 검증
 - 동시 요청, 권한, 암호화와 배포 설정
 - 사용자 동의와 생체정보 보관, 삭제 정책
+
+정량 평가가 공개되기 전까지 특정 개선율이나 운영 성능을 주장하지 않습니다.
 
 [Evaluation and deployment roadmap](docs/LEARNING_ROADMAP.md)
