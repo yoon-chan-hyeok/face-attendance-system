@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+env/
+ENV/
+
+# DeepFace
+.deepface/
+weights/
+*.npy
+
+# MediaPipe Models
+models/*.task
+liveness_config.json
+
+# Data (테스트 데이터 및 인코딩 파일)
+data/images/*
+!data/images/.gitkeep
+!data/images/README.md
+data/encodings/*
+!data/encodings/.gitkeep
+
+# FastAPI
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+
+# 결과 파일
+results/*
+!results/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

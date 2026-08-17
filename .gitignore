@@ -1,0 +1,41 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv-win/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Face data and model artifacts
+*.npy
+*.task
+.deepface/
+weights/
+backend/liveness_config.json
+backend/data/images/*
+!backend/data/images/.gitkeep
+!backend/data/images/README.md
+backend/data/encodings/*
+!backend/data/encodings/.gitkeep
+backend/results/*
+!backend/results/.gitkeep
+
+# Frontend
+node_modules/
+dist/
+dist-ssr/
+
+# Runtime and editors
+*.log
+logs/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
