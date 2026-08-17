@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+deepface
+opencv-python
+pillow
+tf-keras
+python-multipart
+sqlalchemy
+pymysql
+pydantic-settings
+mediapipe

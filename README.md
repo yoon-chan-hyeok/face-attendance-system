@@ -2,71 +2,120 @@
 
 <div align="center">
 
-**기존 얼굴 출결 시스템에서 흐린 등록 사진과 닮은 얼굴로 생기는 오승인을 줄이도록 식별 흐름을 고도화했습니다.**
+**다중 프레임 등록과 모호성 거부 규칙을 적용한 얼굴 인식 출결 시스템**
 
-![Scope](https://img.shields.io/badge/Public%20Scope-Design%20Case%20Study-4F46E5)
-![Source](https://img.shields.io/badge/Application%20Source-Private-5B6573)
+![Source](https://img.shields.io/badge/Application%20Source-Public-16803A)
+![Backend](https://img.shields.io/badge/Backend-FastAPI-009688)
+![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-646CFF)
 ![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
-[변경 내용](#변경-내용) · [판정 흐름](#판정-흐름) · [시스템 범위](#시스템-범위) · [남은 검증](#남은-검증)
+[구현 범위](#구현-범위) · [판정 흐름](#판정-흐름) · [실행](#로컬-실행) · [검증 경계](#검증-경계)
 
 </div>
 
-> 이 저장소는 기존 시스템을 어떻게 고도화했는지 정리한 설계 사례입니다. 실제 얼굴 image, embedding, DB 설정과 application source는 포함하지 않으므로 실행 가능한 공개 구현으로 보지 않아야 합니다.
-
 ## 문제
 
-기존 시스템은 한 장의 등록 사진과 similarity threshold를 중심으로 사용자를 식별했습니다. 실제 테스트에서는 조명, 명암과 촬영 위치가 바뀌었을 때 닮은 사람이 잘못 승인되는 사례가 있었습니다.
+초기 시스템은 사용자당 한 장의 등록 이미지와 절대 임계값을 중심으로 얼굴을 식별했습니다. 현재 구현은 흐린 등록 프레임, 서로 가까운 두 후보, 한 이미지에서 같은 사용자가 중복 검출되는 경우를 별도로 처리하도록 확장했습니다.
 
-등록과 출퇴근 단계에 모두 많은 frame을 사용하면 응답 시간이 길어졌고, 한 화면에서 같은 사용자가 여러 detection에 중복 연결되는 문제도 있었습니다.
+이 저장소에는 실제 FastAPI 백엔드와 React/Vite 프론트엔드 소스가 포함됩니다. 실제 얼굴 이미지, 얼굴 임베딩, DB 접속값, 관리자 비밀번호와 MediaPipe 모델 파일은 포함하지 않습니다.
 
-## 변경 내용
+## 구현 범위
 
-| 기존 방식 | 변경 | 판단 근거 |
-|---|---|---|
-| Single-image enrollment | Multi-frame 등록 + quality filtering | 흐린 한 장이 사용자 특징 전체를 결정하지 않도록 했습니다. |
-| Centroid-only matching | Centroid 후보 탐색 + 등록 sample 재비교 | 평균값이 가리는 조명과 각도 차이를 개별 sample에서 다시 확인했습니다. |
-| Absolute threshold | Top-1 threshold + top-2 margin | 두 후보가 비슷하면 최고 점수가 기준을 넘어도 승인하지 않았습니다. |
-| Detection별 독립 식별 | User-level dedup | 여러 얼굴 입력에서 한 사용자가 중복 승인되는 것을 막았습니다. |
-| 등록과 출결 모두 다중 추론 | 등록은 풍부하게, 출결은 가볍게 | 반복 사용되는 출결 단계의 지연을 줄였습니다. |
+| 영역 | 현재 코드에 구현된 동작 |
+|---|---|
+| 얼굴 모델 | RetinaFace로 얼굴을 검출하고 ArcFace로 512차원 임베딩 생성 |
+| 사용자 등록 | 3~10개 프레임 입력, Laplacian sharpness 35 미만 제외, sample embedding과 정규화 centroid 저장 |
+| 1:N 검색 | centroid 거리 기준 Top-5 후보 선택 후 후보별 sample embedding으로 재비교 |
+| 승인 규칙 | cosine distance `< 0.68` 및 서로 다른 사용자 Top-1/Top-2 margin `>= 0.03` |
+| 출결 처리 | 최근 기록이 없거나 OUT이면 IN, 최근 기록이 IN이면 OUT |
+| 실시간 경로 | 3~5개 프레임 중 가장 선명한 한 장만 ArcFace 추론하는 V4 경로 |
+| 다중 얼굴 | 사진 속 여러 얼굴을 각각 식별하고 동일 사용자 중복 출결 기록 방지 |
+| 라이브니스 | smile 기반 경로와 MediaPipe Face Landmarker 기반 2회 blink 경로 |
+| 운영 화면 | 등록, 단일 출결, 다중 얼굴 식별/출결, 사용자 조회·삭제, 서버 로그 조회 |
 
-구현 과정에서 사용한 예시 기준은 sharpness 35, cosine-distance threshold 0.68, top-1/top-2 margin 0.03입니다. 운영 데이터로 calibration을 끝낸 값은 아닙니다.
+sharpness `35`, cosine-distance threshold `0.68`, margin `0.03`은 코드에 적용된 기준값입니다. FAR/FRR 기반 운영 데이터 보정이 완료된 값은 아닙니다.
 
 ## 판정 흐름
 
-~~~mermaid
+```mermaid
 flowchart LR
-    C["Camera frames"] --> D["RetinaFace<br/>detection"]
-    D --> Q["Quality gate"]
-    Q --> E["ArcFace<br/>embeddings"]
-    E --> M["Centroid candidate<br/>sample rerank"]
-    M --> G{"Threshold 0.68<br/>Margin 0.03"}
+    C["Camera frames"] --> D["RetinaFace detection"]
+    D --> Q["Sharpness gate"]
+    Q --> E["ArcFace embeddings"]
+    E --> M["Centroid Top-5 search"]
+    M --> S["Sample rerank"]
+    S --> G{"Distance < 0.68<br/>Margin >= 0.03"}
     G -->|accept| A["Attendance service"]
-    G -->|uncertain| R["Reject or retry"]
+    G -->|reject| R["Unknown or retry"]
     A --> U["User-level dedup"]
-    U --> DB["Users and<br/>attendance logs"]
-    DB --> UI["React admin UI"]
-~~~
+    U --> DB["MariaDB attendance log"]
+```
 
-모델이 이름을 반환하는 것으로 끝내지 않고 식별 결과를 사용자, 최근 IN/OUT 기록과 로그에 연결했습니다. 모호한 결과는 출결로 기록하지 않고 재촬영하도록 했습니다.
+등록 단계에서는 여러 프레임을 보존하고, 반복 사용되는 출결 단계에서는 가장 선명한 프레임 하나만 임베딩합니다. 다중 얼굴 출결은 얼굴별 판정 후 사용자 ID 기준으로 가장 가까운 결과 하나만 기록합니다.
 
-## 시스템 범위
+## 저장소 구조
 
-- RetinaFace detection과 ArcFace embedding
-- FastAPI API와 SQLAlchemy, MariaDB data model
-- React, Vite, TypeScript 관리 화면
-- 등록, single/multi-face 식별, 출결 기록과 runtime log
-- Smile/blink liveness 보조 실험
+```text
+backend/   FastAPI, DeepFace, SQLAlchemy, MariaDB schema
+frontend/  React 19, Vite, TypeScript UI
+docs/      미완료 평가·보안·배포 항목
+assets/    공개 문서용 이미지
+```
 
-## 공개 범위
+핵심 코드는 다음 위치에서 확인할 수 있습니다.
 
-공개 저장소에는 architecture, data flow, decision rule과 기능 범위를 정리했습니다. 생체정보가 포함된 원본 image와 embedding, 실행 가능한 application snapshot은 공개하지 않았습니다.
+- [`FaceAnalysisService.create_embedding`](backend/app/services/face_service.py): ArcFace + RetinaFace 임베딩
+- [`find_closest_match_user_level_with_reason`](backend/app/services/face_service.py): cosine distance, threshold, margin gate
+- [`register_user_v2`](backend/app/routers/face.py): 다중 프레임 등록과 centroid 생성
+- [`check_in_out_v4`](backend/app/routers/attendance.py): best-frame 출결 경로
+- [`check_in_out_multi_image`](backend/app/routers/attendance.py): 다중 얼굴과 동일 사용자 중복 제거
 
-## 남은 검증
+## 로컬 실행
 
-- FAR, FRR 기반 threshold와 margin calibration
-- 사진과 영상 재생 공격에 대한 liveness 검증
-- 동시 요청, 권한, 암호화와 배포 설정
-- 사용자 동의와 생체정보 보관, 삭제 정책
+### 1. MariaDB
 
-[Evaluation and deployment roadmap](docs/LEARNING_ROADMAP.md)
+전용 로컬 DB에서 [`backend/db_reset_v2.sql`](backend/db_reset_v2.sql)을 실행합니다. 이 스크립트는 `attendance_db`를 삭제한 뒤 다시 생성하므로 기존 DB에는 실행하면 안 됩니다.
+
+### 2. 백엔드
+
+Python 3.10~3.12 환경을 권장합니다. Python 3.13에서는 프로젝트 작업 당시 MediaPipe 호환 문제가 확인됐습니다.
+
+```powershell
+cd backend
+Copy-Item .env.example .env
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+`.env`의 DB 계정과 `LIVENESS_ADMIN_PASSWORD`는 로컬 값으로 변경해야 합니다. API 문서는 `http://127.0.0.1:8000/docs`에서 확인할 수 있습니다.
+
+Blink 라이브니스를 사용하려면 MediaPipe Face Landmarker 모델을 `backend/models/face_landmarker.task`에 별도로 배치해야 합니다. 모델 파일은 저장소에 포함되지 않습니다.
+
+### 3. 프론트엔드
+
+```powershell
+cd frontend
+Copy-Item .env.example .env
+npm ci
+npm run dev
+```
+
+기본 UI 주소는 `http://127.0.0.1:5173`입니다.
+
+## 검증 경계
+
+확인된 검증은 Python 소스 구문 검사와 TypeScript/Vite 프로덕션 빌드입니다. 얼굴 데이터셋 기반 accuracy, FAR, FRR, ROC, 지연시간 비교 수치는 현재 저장소에 없으므로 성능 성과로 주장하지 않습니다.
+
+추가로 필요한 검증과 운영 항목은 [평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)에 분리했습니다.
+
+## 개인정보 범위
+
+다음 파일은 Git에 포함되지 않습니다.
+
+- 실제 사용자 얼굴 이미지와 `.npy` 임베딩
+- `.env`와 DB 접속 정보
+- 라이브니스 관리자 해시와 변경 이력
+- DeepFace/MediaPipe 모델 가중치
+- 가상환경, 로그와 빌드 산출물
