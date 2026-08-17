@@ -1,8 +1,10 @@
-![Face Attendance System Hardening](assets/project-hero.svg)
+![얼굴 출결 시스템 고도화](assets/project-hero.svg)
 
 <div align="center">
 
-**다중 프레임 등록과 모호성 거부 규칙을 적용한 얼굴 인식 출결 시스템**
+# 기존 얼굴 출결 시스템 고도화
+
+**한 장만 등록하고 절대 임계값으로 승인하던 방식을 다중 프레임 등록, 후보 재정렬과 판정 여유값으로 보완했습니다.**
 
 ![Source](https://img.shields.io/badge/Application%20Source-Public-16803A)
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-009688)
@@ -10,76 +12,74 @@
 ![CI](https://github.com/yoon-chan-hyeok/face-attendance-system/actions/workflows/ci.yml/badge.svg)
 ![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
-[구현 범위](#구현-범위) · [판정 흐름](#판정-흐름) · [실행](#로컬-실행) · [검증 경계](#검증-경계)
+[시작점](#시작점) · [바꾼 내용](#바꾼-내용) · [판정 흐름](#얼굴을-판정하는-과정) · [실행](#로컬에서-실행하기) · [한계](#확인한-범위와-남은-일)
 
 </div>
 
-## 문제
+## 30초 요약
 
-초기 시스템은 사용자당 한 장의 등록 이미지와 절대 임계값을 중심으로 얼굴을 식별했습니다. 현재 구현은 흐린 등록 프레임, 서로 가까운 두 후보, 한 이미지에서 같은 사용자가 중복 검출되는 경우를 별도로 처리하도록 확장했습니다.
+- 기본 얼굴 등록과 인식 기능이 있던 출결 시스템을 고도화한 프로젝트입니다.
+- 실제 테스트에서 닮은 사람이 잘못 승인되는 사례를 확인한 뒤 등록과 판정 방식을 바꿨습니다.
+- 등록할 때는 여러 프레임으로 사용자 표현을 넓히고, 출결할 때는 가장 선명한 프레임 하나만 사용해 처리 시간을 조절했습니다.
+- 전체 FastAPI 백엔드와 React 프론트엔드 코드는 공개했지만 얼굴 데이터와 운영 인증 정보는 제외했습니다.
 
-이 저장소에는 실제 FastAPI 백엔드와 React/Vite 프론트엔드 소스가 포함됩니다. 실제 얼굴 이미지, 얼굴 임베딩, DB 접속값, 관리자 비밀번호와 MediaPipe 모델 파일은 포함하지 않습니다.
+## 시작점
 
-## 구현 범위
+초기 시스템에는 기본 얼굴 등록과 인식, 유사도 임계값을 이용한 식별 기능이 있었습니다. 한 사용자를 한 장의 이미지로 등록했고, 가장 가까운 후보가 임계값만 통과하면 승인하는 구조였습니다.
 
-| 영역 | 현재 코드에 구현된 동작 |
+조명과 촬영 위치를 바꿔 테스트하는 과정에서 닮은 사람이 잘못 승인되는 사례가 나왔습니다. 1순위 후보의 점수만 보면 2순위 후보와 거의 차이가 없는 모호한 상황을 구분하기 어려웠습니다. 등록과 출결에서 모두 여러 프레임을 추론하면 판정 정보는 늘지만 대기 시간이 길어지는 문제도 있었습니다.
+
+## 바꾼 내용
+
+| 영역 | 현재 구현 |
 |---|---|
-| 얼굴 모델 | RetinaFace로 얼굴을 검출하고 ArcFace로 512차원 임베딩 생성 |
-| 사용자 등록 | 3~10개 프레임 입력, Laplacian sharpness 35 미만 제외, sample embedding과 정규화 centroid 저장 |
-| 1:N 검색 | centroid 거리 기준 Top-5 후보 선택 후 후보별 sample embedding으로 재비교 |
-| 승인 규칙 | cosine distance `< 0.68` 및 서로 다른 사용자 Top-1/Top-2 margin `>= 0.03` |
-| 출결 처리 | 최근 기록이 없거나 OUT이면 IN, 최근 기록이 IN이면 OUT |
-| 실시간 경로 | 3~5개 프레임 중 가장 선명한 한 장만 ArcFace 추론하는 V4 경로 |
-| 다중 얼굴 | 사진 속 여러 얼굴을 각각 식별하고 동일 사용자 중복 출결 기록 방지 |
-| 라이브니스 | smile 기반 경로와 MediaPipe Face Landmarker 기반 2회 blink 경로 |
-| 운영 화면 | 등록, 단일 출결, 다중 얼굴 식별/출결, 사용자 조회·삭제, 서버 로그 조회 |
+| 얼굴 표현 | RetinaFace로 얼굴을 찾고 ArcFace로 512차원 임베딩 생성 |
+| 사용자 등록 | 3~10개 프레임을 받아 선명도 35 미만을 제외하고 개별 임베딩과 정규화 중심점 저장 |
+| 후보 검색 | 중심점 거리로 상위 5명을 고른 뒤 각 후보의 개별 임베딩으로 다시 비교 |
+| 승인 조건 | cosine distance `< 0.68`이면서 서로 다른 사용자 1순위와 2순위의 차이가 `0.03` 이상일 때 승인 |
+| 출결 전환 | 최근 기록이 없거나 OUT이면 IN, 최근 기록이 IN이면 OUT |
+| 실시간 처리 | 3~5개 프레임 중 가장 선명한 한 장만 ArcFace로 추론 |
+| 여러 얼굴 | 얼굴별로 식별한 뒤 같은 사용자가 한 이미지에서 두 번 기록되지 않도록 정리 |
+| 라이브니스 | 미소 기반 방식과 MediaPipe Face Landmarker의 두 번 깜박임 방식 |
+| 관리 화면 | 등록, 출결, 여러 얼굴 식별, 사용자 조회·삭제와 서버 로그 확인 |
 
-sharpness `35`, cosine-distance threshold `0.68`, margin `0.03`은 코드에 적용된 기준값입니다. FAR/FRR 기반 운영 데이터 보정이 완료된 값은 아닙니다.
+선명도 `35`, 거리 임계값 `0.68`, 후보 차이 `0.03`은 현재 코드에 들어 있는 기준입니다. 실제 사용 환경의 FAR과 FRR을 바탕으로 조정한 최종 운영값은 아닙니다.
 
-## 판정 흐름
+## 얼굴을 판정하는 과정
 
 ```mermaid
 flowchart LR
-    C["Camera frames"] --> D["RetinaFace detection"]
-    D --> Q["Sharpness gate"]
-    Q --> E["ArcFace embeddings"]
-    E --> M["Centroid Top-5 search"]
-    M --> S["Sample rerank"]
-    S --> G{"Distance < 0.68<br/>Margin >= 0.03"}
-    G -->|accept| A["Attendance service"]
-    G -->|reject| R["Unknown or retry"]
-    A --> U["User-level dedup"]
-    U --> DB["MariaDB attendance log"]
+    C["카메라 프레임"] --> D["RetinaFace 얼굴 검출"]
+    D --> Q["선명도 확인"]
+    Q --> E["ArcFace 임베딩"]
+    E --> M["중심점 기준 상위 5명"]
+    M --> S["개별 임베딩 재비교"]
+    S --> G{"거리 < 0.68<br/>후보 차이 >= 0.03"}
+    G -->|승인| A["출결 처리"]
+    G -->|거절| R["미등록 또는 재시도"]
+    A --> U["사용자 단위 중복 제거"]
+    U --> DB["MariaDB 출결 기록"]
 ```
 
-등록 단계에서는 여러 프레임을 보존하고, 반복 사용되는 출결 단계에서는 가장 선명한 프레임 하나만 임베딩합니다. 다중 얼굴 출결은 얼굴별 판정 후 사용자 ID 기준으로 가장 가까운 결과 하나만 기록합니다.
+등록 단계에는 계산을 더 사용해 여러 환경의 얼굴을 보존합니다. 반복해서 사용하는 출결 단계에서는 가장 선명한 프레임 하나만 임베딩해 대기 시간을 줄입니다. 여러 얼굴이 들어온 사진은 얼굴별로 판정한 뒤 사용자 ID 기준으로 가장 가까운 결과 하나만 기록합니다.
 
-## 저장소 구조
+## 코드에서 확인할 위치
 
-```text
-backend/   FastAPI, DeepFace, SQLAlchemy, MariaDB schema
-frontend/  React 19, Vite, TypeScript UI
-docs/      미완료 평가·보안·배포 항목
-assets/    공개 문서용 이미지
-```
+- [`FaceAnalysisService.create_embedding`](backend/app/services/face_service.py): ArcFace와 RetinaFace를 이용한 임베딩 생성
+- [`find_closest_match_user_level_with_reason`](backend/app/services/face_service.py): 거리 임계값과 후보 차이를 함께 보는 판정
+- [`register_user_v2`](backend/app/routers/face.py): 다중 프레임 등록과 중심점 생성
+- [`check_in_out_v4`](backend/app/routers/attendance.py): 가장 선명한 프레임을 이용한 출결
+- [`check_in_out_multi_image`](backend/app/routers/attendance.py): 여러 얼굴 판정과 사용자 중복 제거
 
-핵심 코드는 다음 위치에서 확인할 수 있습니다.
+## 로컬에서 실행하기
 
-- [`FaceAnalysisService.create_embedding`](backend/app/services/face_service.py): ArcFace + RetinaFace 임베딩
-- [`find_closest_match_user_level_with_reason`](backend/app/services/face_service.py): cosine distance, threshold, margin gate
-- [`register_user_v2`](backend/app/routers/face.py): 다중 프레임 등록과 centroid 생성
-- [`check_in_out_v4`](backend/app/routers/attendance.py): best-frame 출결 경로
-- [`check_in_out_multi_image`](backend/app/routers/attendance.py): 다중 얼굴과 동일 사용자 중복 제거
+### 1. MariaDB 준비
 
-## 로컬 실행
-
-### 1. MariaDB
-
-전용 로컬 DB에서 [`backend/db_reset_v2.sql`](backend/db_reset_v2.sql)을 실행합니다. 이 스크립트는 `attendance_db`를 삭제한 뒤 다시 생성하므로 기존 DB에는 실행하면 안 됩니다.
+전용 로컬 DB에서 [`backend/db_reset_v2.sql`](backend/db_reset_v2.sql)을 실행합니다. 이 스크립트는 `attendance_db`를 삭제하고 다시 만들기 때문에 기존 DB에는 실행하면 안 됩니다.
 
 ### 2. 백엔드
 
-Python 3.10~3.12 환경을 권장합니다. Python 3.13에서는 프로젝트 작업 당시 MediaPipe 호환 문제가 확인됐습니다.
+Python 3.10~3.12 환경을 권장합니다. 프로젝트 작업 당시 Python 3.13에서는 MediaPipe 호환 문제가 있었습니다.
 
 ```powershell
 cd backend
@@ -90,9 +90,9 @@ python -m pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-`.env`의 DB 계정과 `LIVENESS_ADMIN_PASSWORD`는 로컬 값으로 변경해야 합니다. 비밀번호가 없으면 라이브니스 설정 변경을 거부합니다. 허용할 프론트엔드 주소는 `CORS_ORIGINS`에서 지정합니다. API 문서는 `http://127.0.0.1:8000/docs`에서 확인할 수 있습니다.
+`.env`의 DB 계정과 `LIVENESS_ADMIN_PASSWORD`를 로컬 값으로 바꿔야 합니다. 비밀번호가 없으면 라이브니스 설정 변경을 거부합니다. 프론트엔드 주소는 `CORS_ORIGINS`에서 지정합니다. API 문서는 `http://127.0.0.1:8000/docs`에서 볼 수 있습니다.
 
-Blink 라이브니스를 사용하려면 MediaPipe Face Landmarker 모델을 `backend/models/face_landmarker.task`에 별도로 배치해야 합니다. 모델 파일은 저장소에 포함되지 않습니다.
+깜박임 라이브니스를 사용하려면 MediaPipe Face Landmarker 모델을 `backend/models/face_landmarker.task`에 따로 배치해야 합니다. 모델 파일은 저장소에 포함하지 않았습니다.
 
 ### 3. 프론트엔드
 
@@ -103,22 +103,21 @@ npm ci
 npm run dev
 ```
 
-기본 UI 주소는 `http://127.0.0.1:5173`입니다.
+기본 화면은 `http://127.0.0.1:5173`에서 열립니다.
 
-## 검증 경계
+## 저장소 구성
 
-확인된 검증은 Python 소스 구문 검사, 출결 IN/OUT 전환 unit test와 TypeScript/Vite 프로덕션 빌드입니다. 얼굴 데이터셋 기반 accuracy, FAR, FRR, ROC, 지연시간 비교 수치는 현재 저장소에 없으므로 성능 성과로 주장하지 않습니다.
+```text
+backend/   FastAPI, DeepFace, SQLAlchemy, MariaDB 스키마
+frontend/  React 19, Vite, TypeScript 화면
+docs/      평가, 보안과 배포 전 확인할 항목
+assets/    공개 문서용 이미지
+```
 
-현재 공개본은 로컬 연구용 prototype입니다. 사용자·로그 관리 API의 인증, HTTPS, 임베딩 암호화와 보관 정책은 포함하지 않았으므로 외부 네트워크에 그대로 공개하면 안 됩니다.
+## 확인한 범위와 남은 일
 
-추가로 필요한 검증과 운영 항목은 [평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)에 분리했습니다.
+자동화 검사에서는 Python 코드 구문, 출결 IN/OUT 전환 단위 테스트와 TypeScript/Vite 프로덕션 빌드를 확인합니다. 얼굴 데이터셋을 이용한 정확도, FAR, FRR, ROC와 지연시간 비교 수치는 아직 없습니다. 이 저장소에서는 성능 향상 수치로 주장하지 않습니다.
 
-## 개인정보 범위
+현재 공개본은 로컬 연구용 프로토타입입니다. 사용자와 로그 관리 API의 인증, HTTPS, 임베딩 암호화와 보관 정책은 포함하지 않았습니다. 외부 네트워크에 그대로 배포하면 안 됩니다. 남은 평가와 운영 항목은 [평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)에 정리했습니다.
 
-다음 파일은 Git에 포함되지 않습니다.
-
-- 실제 사용자 얼굴 이미지와 `.npy` 임베딩
-- `.env`와 DB 접속 정보
-- 라이브니스 관리자 비밀번호와 변경 이력
-- DeepFace/MediaPipe 모델 가중치
-- 가상환경, 로그와 빌드 산출물
+실제 사용자 얼굴 이미지와 임베딩, `.env`, DB 접속 정보, 관리자 비밀번호, 모델 가중치, 로그와 빌드 결과물은 Git에 포함하지 않았습니다.

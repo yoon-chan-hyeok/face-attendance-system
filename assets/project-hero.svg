@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
-  <title id="title">Face Attendance System Hardening</title>
-  <desc id="desc">Hardening an existing face-attendance workflow with safer enrollment and identification.</desc>
+  <title id="title">Face Attendance System Upgrade</title>
+  <desc id="desc">Upgrading an existing face-attendance workflow with safer enrollment and identification.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#070B14"/>
@@ -21,9 +21,9 @@
   <circle cx="1060" cy="70" r="150" fill="#4F46E5" opacity=".15" filter="url(#glow)"/>
   <circle cx="1120" cy="210" r="130" fill="#38BDF8" opacity=".12" filter="url(#glow)"/>
   <rect x="70" y="54" width="58" height="6" rx="3" fill="url(#accent)"/>
-  <text x="70" y="93" fill="#38BDF8" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" letter-spacing="3">EXISTING SYSTEM HARDENING</text>
+  <text x="70" y="93" fill="#38BDF8" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="800" letter-spacing="3">EXISTING SYSTEM UPGRADE</text>
   <text x="70" y="151" fill="#F8FAFC" font-family="Segoe UI,Arial,sans-serif" font-size="54" font-weight="800">Face Attendance System</text>
-  <text x="70" y="190" fill="#CBD5E1" font-family="Segoe UI,Arial,sans-serif" font-size="21">Improved enrollment, rejection rules, API, database and UI workflow.</text>
+  <text x="70" y="190" fill="#CBD5E1" font-family="Segoe UI,Arial,sans-serif" font-size="21">Improved enrollment, matching decisions and attendance workflow.</text>
   <path d="M930 112h150m-120-30 30 30-30 30" fill="none" stroke="url(#accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
   <g transform="translate(70 240)">
     <rect width="320" height="72" rx="14" fill="#101827" stroke="url(#accent)" stroke-opacity=".55"/>
