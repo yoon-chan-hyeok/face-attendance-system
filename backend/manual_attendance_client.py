@@ -1,13 +1,13 @@
-"""
-출퇴근 관리 API 테스트 스크립트
-"""
-import requests
-import sys
+"""실행 중인 출퇴근 관리 API를 수동으로 확인하는 CLI client."""
+
 import os
-from pathlib import Path
+import sys
+
+import requests
 
 # API 서버 URL
 BASE_URL = "http://localhost:8000/api/v1"
+
 
 def print_separator():
     print("=" * 60)
@@ -176,17 +176,17 @@ def main():
         return
     
     print("\n사용 방법:")
-    print("  python test_attendance.py [command] [args...]")
+    print("  python manual_attendance_client.py [command] [args...]")
     print("\n명령어:")
     print("  checkin <이미지경로>              - 출퇴근 체크")
     print("  history <사번> [개수]             - 특정 직원 이력 조회")
     print("  all [개수]                        - 전체 이력 조회")
     print("  status <사번>                     - 직원 상태 조회")
     print("\n예시:")
-    print("  python test_attendance.py checkin data/images/test.jpg")
-    print("  python test_attendance.py history E001 10")
-    print("  python test_attendance.py all 20")
-    print("  python test_attendance.py status E001")
+    print("  python manual_attendance_client.py checkin data/images/test.jpg")
+    print("  python manual_attendance_client.py history E001 10")
+    print("  python manual_attendance_client.py all 20")
+    print("  python manual_attendance_client.py status E001")
     print()
     
     if len(sys.argv) < 2:
@@ -198,7 +198,7 @@ def main():
     if command == "checkin":
         if len(sys.argv) < 3:
             print("❌ 이미지 경로를 입력하세요.")
-            print("   예: python test_attendance.py checkin data/images/test.jpg")
+            print("   예: python manual_attendance_client.py checkin data/images/test.jpg")
             return
         
         image_path = sys.argv[2]
@@ -207,7 +207,7 @@ def main():
     elif command == "history":
         if len(sys.argv) < 3:
             print("❌ 사번을 입력하세요.")
-            print("   예: python test_attendance.py history E001")
+            print("   예: python manual_attendance_client.py history E001")
             return
         
         employee_id = sys.argv[2]
@@ -221,7 +221,7 @@ def main():
     elif command == "status":
         if len(sys.argv) < 3:
             print("❌ 사번을 입력하세요.")
-            print("   예: python test_attendance.py status E001")
+            print("   예: python manual_attendance_client.py status E001")
             return
         
         employee_id = sys.argv[2]
@@ -235,4 +235,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
