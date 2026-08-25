@@ -2,9 +2,9 @@
 
 <div align="center">
 
-# 기존 얼굴 출결 시스템 고도화
+# Face Attendance System Upgrade
 
-**실제 촬영 환경에서 오승인을 확인하고, 등록 방식과 얼굴 판정 기준을 다시 설계했습니다.**
+**기존 얼굴 출결 시스템에서 ambiguity failure를 재현하고 enrollment와 matching decision을 다시 설계했습니다.**
 
 ![Source](https://img.shields.io/badge/Application%20Source-Public-16803A)
 ![Backend](https://img.shields.io/badge/Backend-FastAPI-009688)
@@ -12,19 +12,27 @@
 ![CI](https://github.com/yoon-chan-hyeok/face-attendance-system/actions/workflows/ci.yml/badge.svg)
 ![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
-[문제](#실제-사용-상황에서-발견한-문제) · [해결 흐름](#문제를-해결한-흐름) · [구현](#현재-구현) · [판정](#얼굴을-판정하는-과정) · [실행](#로컬에서-실행하기)
+[Problem](#1-upgrade-context-and-failure-reproduction) · [Design](#2-design-evolution) · [Implementation](#3-current-implementation) · [Decision](#4-recognition-decision-pipeline) · [Quick start](#5-quick-start) · [Validation](#7-validation-status-and-deployment-boundary)
 
 </div>
 
-## 실제 사용 상황에서 발견한 문제
+## 1. Upgrade context and failure reproduction
 
 이 프로젝트는 얼굴 등록과 인식 기능이 이미 있던 출결 시스템에서 시작했습니다. 초기 버전은 사용자마다 사진 한 장을 저장하고, 입력 얼굴과 가장 가까운 후보가 거리 임계값을 통과하면 출결을 승인했습니다.
 
 실제 사용 상황을 가정해 조명, 명암과 촬영 위치를 바꿔 테스트하던 중 닮은 사람이 잘못 승인되는 사례가 나왔습니다. 당시 판정은 가장 가까운 후보가 거리 임계값만 넘으면 승인하는 방식이었습니다. 1순위와 2순위 후보의 점수가 거의 같아도 둘 중 한 명을 선택할 수 있었습니다.
 
-이 실패 사례를 기준으로 등록 데이터, 후보 검색과 최종 승인 조건을 차례로 확인했습니다. 프로젝트의 초점은 실제 문제를 재현하고, 원인을 판정식까지 내려가 수정한 뒤 처리시간을 고려해 구현 방식을 조정하는 과정에 있습니다.
+이 failure case를 기준으로 enrollment data, candidate retrieval과 final acceptance rule을 차례로 확인했습니다. 프로젝트의 초점은 실제 문제를 재현하고, 원인을 decision rule까지 내려가 수정한 뒤 latency를 고려해 구현 방식을 조정하는 과정에 있습니다.
 
-## 문제를 해결한 흐름
+| 조건 | 가정한 실제 사용 상황 |
+|---|---|
+| Enrollment | 한 번의 정면 사진만으로는 조명과 촬영 위치 변화를 충분히 담기 어렵습니다. |
+| Identification | 등록 인원이 늘면 nearest candidate가 존재한다는 사실만으로 승인할 수 없습니다. |
+| Attendance | 얼굴 인식은 반복 실행되므로 enrollment보다 inference cost를 낮게 유지해야 합니다. |
+| Multi-face input | 한 이미지에서 여러 얼굴을 처리하되 같은 사용자의 출결이 중복 기록되면 안 됩니다. |
+| Deployment | 운영 전 threshold calibration, authentication과 biometric data policy가 필요합니다. |
+
+## 2. Design evolution
 
 | 단계 | 확인한 문제와 결정 |
 |---|---|
@@ -38,7 +46,7 @@
 
 등록과 출결에는 서로 다른 계산량을 적용했습니다. 등록 단계에서는 사용자 표현을 넓히고, 자주 실행되는 출결 단계에는 필요한 계산만 남겼습니다.
 
-## 현재 구현
+## 3. Current implementation
 
 | 영역 | 현재 구현 |
 |---|---|
@@ -54,7 +62,7 @@
 
 선명도 `35`, 거리 임계값 `0.68`, 후보 차이 `0.03`은 현재 코드에 들어 있는 기준입니다. 운영 환경에서 FAR과 FRR을 측정해 정한 최종값은 아닙니다.
 
-## 얼굴을 판정하는 과정
+## 4. Recognition decision pipeline
 
 ```mermaid
 flowchart LR
@@ -80,7 +88,7 @@ flowchart LR
 - [`check_in_out_v4`](backend/app/routers/attendance.py): 가장 선명한 프레임을 이용한 출결
 - [`check_in_out_multi_image`](backend/app/routers/attendance.py): 여러 얼굴 판정과 사용자 중복 제거
 
-## 로컬에서 실행하기
+## 5. Quick start
 
 ### 1. MariaDB 준비
 
@@ -114,7 +122,7 @@ npm run dev
 
 기본 화면은 `http://127.0.0.1:5173`에서 열립니다.
 
-## 저장소 구성
+## 6. Repository structure
 
 ```text
 backend/   FastAPI, DeepFace, SQLAlchemy, MariaDB 스키마
@@ -123,7 +131,7 @@ docs/      평가, 보안과 배포 전에 확인할 항목
 assets/    공개 문서용 이미지
 ```
 
-## 현재 확인한 범위
+## 7. Validation status and deployment boundary
 
 자동화 검사에서는 Python 코드 구문, 출결 IN/OUT 전환 단위 테스트와 TypeScript/Vite 프로덕션 빌드를 확인합니다. 얼굴 데이터셋을 이용한 정확도, FAR, FRR, ROC와 지연시간 비교는 아직 하지 않았습니다. 따라서 현재 구현을 성능 향상 수치로 설명하지 않습니다.
 
