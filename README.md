@@ -12,7 +12,7 @@
 ![CI](https://github.com/yoon-chan-hyeok/face-attendance-system/actions/workflows/ci.yml/badge.svg)
 ![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
-[Problem](#1-upgrade-context) · [Contribution](#2-my-contribution) · [Before → After](#3-before--after) · [Design](#4-design-decisions) · [Pipelines](#5-end-to-end-pipelines) · [Implementation](#6-current-implementation) · [Validation](#9-validation-status-and-deployment-boundary)
+[Problem](#1-upgrade-context) · [Before → After](#2-before--after) · [Design](#3-design-decisions) · [Pipelines](#4-end-to-end-pipelines) · [Implementation](#5-current-implementation) · [Validation](#8-validation-status-and-deployment-boundary)
 
 </div>
 
@@ -20,30 +20,16 @@
 
 이 프로젝트는 얼굴 등록과 인식 기능이 이미 있던 출결 시스템에서 시작했습니다. 초기 버전은 사용자마다 대표 임베딩 하나를 저장하고, 입력 얼굴과 가장 가까운 후보가 거리 임계값을 통과하면 출결을 승인하는 구조였습니다.
 
-조명·명암·촬영 위치를 바꿔 테스트하던 중 **닮은 사람이 잘못 승인되는 ambiguity failure**를 확인했습니다. 단순히 threshold 값을 다시 조정하기보다 문제를 네 단계로 나눠 봤습니다.
+조명·명암·촬영 위치를 바꿔 테스트하던 중 닮은 사람이 잘못 승인되는 사례를 확인했습니다. `threshold` 하나를 다시 조정하는 대신 문제를 네 단계로 나눠 봤습니다.
 
-- **Enrollment** — 사진 한 장이 사용자의 얼굴 변화를 충분히 대표하는가?
-- **Candidate retrieval** — 등록 인원이 늘어날 때 모든 샘플을 처음부터 비교해야 하는가?
-- **Final decision** — 가장 가까운 후보가 있다는 이유만으로 승인해도 되는가?
-- **Attendance operation** — 반복 inference, multi-face input, 중복 기록과 실패 원인을 어떻게 처리할 것인가?
+- Enrollment: 사진 한 장이 사용자의 얼굴 변화를 충분히 대표하는가?
+- Candidate retrieval: 등록 인원이 늘어날 때 모든 샘플을 처음부터 비교해야 하는가?
+- Final decision: 가장 가까운 후보가 있다는 이유만으로 승인해도 되는가?
+- Attendance operation: 반복 inference, multi-face input, 중복 기록과 실패 원인을 어떻게 처리할 것인가?
 
-프로젝트의 초점은 새로운 얼굴 모델을 만드는 것이 아니라, **모델 출력이 실제 출결 승인으로 이어지는 decision pipeline을 다시 설계한 과정**에 있습니다.
+새 얼굴 모델을 만드는 대신, 모델 출력을 실제 출결 승인으로 연결하는 decision pipeline을 다시 설계했습니다.
 
-## 2. My contribution
-
-이 고도화에서 직접 다룬 핵심은 모델 자체보다 **등록 표현·검색·판정·운영 흐름을 연결하는 시스템 설계**였습니다.
-
-- single embedding / threshold-only 구조에서 발생한 오인식 case를 재현하고 failure 지점을 분해
-- 등록을 **multi-sample embedding + centroid** 구조로 변경하고 저품질 frame filtering 추가
-- **centroid Top-k retrieval → 실제 sample reranking**의 2-stage matching 구현
-- Top-1과 Top-2가 비슷한 경우 승인을 거절하도록 **margin gate** 추가
-- 반복 출결 비용을 고려해 multi-frame 평균 대신 **best-frame inference** 전략 선택
-- multi-face attendance에서 동일 사용자가 여러 번 기록되지 않도록 **user-level deduplication** 구현
-- `.npy` 반복 로딩을 줄이기 위한 embedding memory cache와 실패 사유·로그·사용자 관리 기능 추가
-
-즉, `얼굴을 인식하는 모델`을 붙이는 데서 끝내지 않고 **언제 그 결과를 신뢰해 출결로 승인할지**를 시스템 수준에서 다뤘습니다.
-
-## 3. Before → After
+## 2. Before → After
 
 | 영역 | 초기 구조 | 현재 구조 | 결정 이유 |
 |---|---|---|---|
@@ -55,11 +41,11 @@
 | 운영 가시성 | 제한적 | 실시간 로그, 실패 사유, 사용자 조회·삭제 UI | threshold/margin/no-face 등 실패 원인을 확인하기 위해 |
 | 반복 로딩 | `.npy` 반복 로딩 | embedding memory cache | 반복 식별 시 파일 로딩 병목 완화 |
 
-핵심 변화는 `single representation → richer enrollment`, `nearest match → candidate + verification`, `always choose → reject ambiguity`로 요약할 수 있습니다.
+구조는 `single representation → richer enrollment`, `nearest match → candidate + verification`, `always choose → reject ambiguity` 순서로 바뀌었습니다.
 
-## 4. Design decisions
+## 3. Design decisions
 
-### 4.1 Single image → multi-frame enrollment
+### 3.1 Single image → multi-frame enrollment
 
 한 장의 정면 사진만 저장하면 촬영 조건 변화에 취약할 수 있다고 판단했습니다. 등록 시 여러 프레임을 받고, Laplacian variance 기반 sharpness가 기준보다 낮은 프레임은 제외한 뒤 유효 프레임의 ArcFace embedding을 각각 저장합니다.
 
@@ -70,7 +56,7 @@
 
 centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **centroid는 검색용, sample은 최종 검증용**으로 역할을 분리했습니다.
 
-### 4.2 Threshold only → ambiguity rejection
+### 3.2 Threshold only → ambiguity rejection
 
 초기 방식에서는 가장 가까운 후보의 distance가 threshold를 통과하면 승인했습니다. 하지만 Top-1과 Top-2가 거의 비슷한 경우에도 한 사람을 강제로 선택할 수 있습니다.
 
@@ -81,7 +67,7 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 현재 코드의 예시 기준은 cosine distance `< 0.68`, margin gap `>= 0.03`입니다. 이 값들은 운영 데이터에서 FAR/FRR을 측정해 calibration한 최종값이 아니라 **현재 프로토타입의 decision rule**입니다.
 
-### 4.3 Centroid retrieval → sample reranking
+### 3.3 Centroid retrieval → sample reranking
 
 모든 사용자의 모든 sample embedding을 처음부터 비교하면 등록 sample이 늘수록 비교량도 함께 커집니다. 반대로 centroid만 최종 판정에 사용하면 평균 벡터가 실제 얼굴 sample을 충분히 대표하지 못할 수 있습니다.
 
@@ -92,7 +78,7 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 이 구조에서 **centroid는 속도와 안정성을 위한 1차 filter**, **sample reranking은 실제 sample을 이용한 최종 verification**입니다.
 
-### 4.4 Enrollment cost ≠ attendance cost
+### 3.4 Enrollment cost ≠ attendance cost
 
 등록은 사용자당 한 번 또는 드물게 수행되지만 출결 inference는 반복됩니다. 따라서 두 단계에 같은 계산량을 쓰지 않았습니다.
 
@@ -101,9 +87,9 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 V3에서는 여러 frame embedding을 평균내는 방식도 실험했지만, V4에서는 반복 inference의 계산량을 줄이는 방향으로 best-frame 전략을 선택했습니다.
 
-## 5. End-to-end pipelines
+## 4. End-to-end pipelines
 
-### 5.1 Registration pipeline
+### 4.1 Registration pipeline
 
 ```mermaid
 flowchart LR
@@ -119,7 +105,7 @@ flowchart LR
 
 등록 단계에서는 흐린 프레임과 얼굴 검출 실패 프레임을 제외하고, 최소 1개 이상의 유효 프레임이 남으면 등록합니다. 개별 sample과 centroid를 함께 남겨 이후 후보 검색과 재검증에 사용합니다.
 
-### 5.2 Single-person attendance
+### 4.2 Single-person attendance
 
 ```mermaid
 flowchart LR
@@ -136,7 +122,7 @@ flowchart LR
 
 출결에서는 가장 선명한 frame 하나만 embedding하고, centroid로 후보를 줄인 뒤 sample을 재비교합니다. threshold 또는 margin 조건을 만족하지 못하면 출결 기록을 남기지 않습니다.
 
-### 5.3 Multi-person attendance
+### 4.3 Multi-person attendance
 
 ```mermaid
 flowchart LR
@@ -151,7 +137,7 @@ flowchart LR
 
 한 이미지에서 여러 얼굴을 검출하고 얼굴별로 동일한 hybrid matching을 수행합니다. 같은 사용자가 여러 검출 결과에 매핑되면 가장 좋은 결과 하나만 남겨 **한 프레임에서 같은 사람의 IN/OUT이 반복 토글되는 문제**를 막습니다.
 
-## 6. Current implementation
+## 5. Current implementation
 
 | 영역 | 현재 구현 |
 |---|---|
@@ -174,13 +160,13 @@ flowchart LR
 - [`check_in_out_v4`](backend/app/routers/attendance.py): best-frame 기반 출결
 - [`check_in_out_multi_image`](backend/app/routers/attendance.py): multi-face 판정과 사용자 중복 제거
 
-## 7. Quick start
+## 6. Quick start
 
-### 7.1 MariaDB 준비
+### 6.1 MariaDB 준비
 
 전용 로컬 DB에서 [`backend/db_reset_v2.sql`](backend/db_reset_v2.sql)을 실행합니다. 이 스크립트는 `attendance_db`를 삭제하고 다시 만들기 때문에 기존 DB에는 실행하면 안 됩니다.
 
-### 7.2 Backend
+### 6.2 Backend
 
 Python 3.10~3.12 환경을 권장합니다. 프로젝트 작업 당시 Python 3.13에서는 MediaPipe 호환 문제가 있었습니다.
 
@@ -197,7 +183,7 @@ uvicorn app.main:app --reload
 
 blink liveness를 사용하려면 MediaPipe Face Landmarker 모델을 `backend/models/face_landmarker.task`에 따로 배치해야 합니다. 모델 파일은 저장소에 포함하지 않았습니다.
 
-### 7.3 Frontend
+### 6.3 Frontend
 
 ```powershell
 cd frontend
@@ -208,7 +194,7 @@ npm run dev
 
 기본 화면은 `http://127.0.0.1:5173`에서 열립니다.
 
-## 8. Repository structure
+## 7. Repository structure
 
 ```text
 backend/   FastAPI, DeepFace, SQLAlchemy, MariaDB schema
@@ -217,7 +203,7 @@ docs/      evaluation, security, deployment notes
 assets/    public documentation assets
 ```
 
-## 9. Validation status and deployment boundary
+## 8. Validation status and deployment boundary
 
 자동화 검사에서는 Python 코드 구문, 출결 IN/OUT 전환 단위 테스트와 TypeScript/Vite 프로덕션 빌드를 확인합니다.
 
