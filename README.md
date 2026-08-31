@@ -12,24 +12,28 @@
 ![CI](https://github.com/yoon-chan-hyeok/face-attendance-system/actions/workflows/ci.yml/badge.svg)
 ![Validation](https://img.shields.io/badge/Calibration-Pending-D97706)
 
-[Problem](#1-upgrade-context) · [Before → After](#2-before--after) · [Design](#3-design-decisions) · [Pipelines](#4-end-to-end-pipelines) · [Implementation](#5-current-implementation) · [Validation](#8-validation-status-and-deployment-boundary)
+[문제](#1-어떤-문제를-고도화했는가) · [변화](#2-문제를-판정-파이프라인으로-풀기) · [설계](#3-왜-이-설계를-선택했는가) · [흐름](#4-등록부터-출결까지의-흐름) · [구현](#5-현재-구현-범위) · [검증](#8-검증된-것과-아직-검증하지-않은-것)
 
 </div>
 
-## 1. Upgrade context
+## 1. 어떤 문제를 고도화했는가
 
 이 프로젝트는 얼굴 등록과 인식 기능이 이미 있던 출결 시스템에서 시작했습니다. 초기 버전은 사용자마다 대표 임베딩 하나를 저장하고, 입력 얼굴과 가장 가까운 후보가 거리 임계값을 통과하면 출결을 승인하는 구조였습니다.
 
-조명·명암·촬영 위치를 바꿔 테스트하던 중 닮은 사람이 잘못 승인되는 사례를 확인했습니다. `threshold` 하나를 다시 조정하는 대신 문제를 네 단계로 나눠 봤습니다.
+조명, 명암과 촬영 위치를 바꿔 테스트하던 중 닮은 사람이 잘못 승인되는 사례를 확인했습니다. 가장 가까운 사람이 있다는 것과 그 사람이라고 확신할 수 있다는 것은 다른 문제였습니다. `threshold` 하나를 다시 조정하면 1순위와 2순위 후보가 얼마나 비슷한지는 여전히 보지 못합니다.
+
+그래서 얼굴 모델 자체를 바꾸기보다, 모델의 embedding을 출결 승인으로 연결하는 과정을 다시 살폈습니다. 문제를 다음 네 단계로 나눴습니다.
 
 - Enrollment: 사진 한 장이 사용자의 얼굴 변화를 충분히 대표하는가?
 - Candidate retrieval: 등록 인원이 늘어날 때 모든 샘플을 처음부터 비교해야 하는가?
 - Final decision: 가장 가까운 후보가 있다는 이유만으로 승인해도 되는가?
 - Attendance operation: 반복 inference, multi-face input, 중복 기록과 실패 원인을 어떻게 처리할 것인가?
 
-새 얼굴 모델을 만드는 대신, 모델 출력을 실제 출결 승인으로 연결하는 decision pipeline을 다시 설계했습니다.
+이 프로젝트에서 보여주려는 것은 새로운 얼굴 인식 모델의 정확도가 아닙니다. 기존 모델의 출력을 실제 기능에 연결할 때 어떤 실패를 관찰했고, 그 실패를 줄이기 위해 등록, 후보 검색, 승인과 출결 기록을 어떻게 다시 설계했는지입니다.
 
-## 2. Before → After
+## 2. 문제를 판정 파이프라인으로 풀기
+
+한 가지 수치만 조정하지 않고, 각 단계에서 어떤 정보가 빠져 있었는지 확인했습니다. 등록에서는 한 장의 사진만으로 사용자를 대표했고, 검색에서는 모든 후보를 같은 방식으로 비교했으며, 승인에서는 가장 가까운 후보를 고르는 데 그쳤습니다. 이를 다음과 같이 바꿨습니다.
 
 | 영역 | 초기 구조 | 현재 구조 | 결정 이유 |
 |---|---|---|---|
@@ -41,11 +45,11 @@
 | 운영 가시성 | 제한적 | 실시간 로그, 실패 사유, 사용자 조회·삭제 UI | threshold/margin/no-face 등 실패 원인을 확인하기 위해 |
 | 반복 로딩 | `.npy` 반복 로딩 | embedding memory cache | 반복 식별 시 파일 로딩 병목 완화 |
 
-구조는 `single representation → richer enrollment`, `nearest match → candidate + verification`, `always choose → reject ambiguity` 순서로 바뀌었습니다.
+변화의 방향은 세 가지였습니다. 등록 단계에서는 여러 촬영 조건을 남기고, 검색과 최종 검증의 역할을 나누며, 후보가 애매할 때는 억지로 한 사람을 고르지 않도록 했습니다.
 
-## 3. Design decisions
+## 3. 왜 이 설계를 선택했는가
 
-### 3.1 Single image → multi-frame enrollment
+### 3.1 여러 프레임으로 등록 데이터 구성
 
 한 장의 정면 사진만 저장하면 촬영 조건 변화에 취약할 수 있다고 판단했습니다. 등록 시 여러 프레임을 받고, Laplacian variance 기반 sharpness가 기준보다 낮은 프레임은 제외한 뒤 유효 프레임의 ArcFace embedding을 각각 저장합니다.
 
@@ -56,7 +60,7 @@
 
 centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **centroid는 검색용, sample은 최종 검증용**으로 역할을 분리했습니다.
 
-### 3.2 Threshold only → ambiguity rejection
+### 3.2 Threshold와 후보 간 margin을 함께 확인
 
 초기 방식에서는 가장 가까운 후보의 distance가 threshold를 통과하면 승인했습니다. 하지만 Top-1과 Top-2가 거의 비슷한 경우에도 한 사람을 강제로 선택할 수 있습니다.
 
@@ -67,7 +71,7 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 현재 코드의 예시 기준은 cosine distance `< 0.68`, margin gap `>= 0.03`입니다. 이 값들은 운영 데이터에서 FAR/FRR을 측정해 calibration한 최종값이 아니라 **현재 프로토타입의 decision rule**입니다.
 
-### 3.3 Centroid retrieval → sample reranking
+### 3.3 Centroid 검색 뒤 sample 재검증
 
 모든 사용자의 모든 sample embedding을 처음부터 비교하면 등록 sample이 늘수록 비교량도 함께 커집니다. 반대로 centroid만 최종 판정에 사용하면 평균 벡터가 실제 얼굴 sample을 충분히 대표하지 못할 수 있습니다.
 
@@ -78,7 +82,7 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 이 구조에서 **centroid는 속도와 안정성을 위한 1차 filter**, **sample reranking은 실제 sample을 이용한 최종 verification**입니다.
 
-### 3.4 Enrollment cost ≠ attendance cost
+### 3.4 등록과 반복 출결의 계산량 분리
 
 등록은 사용자당 한 번 또는 드물게 수행되지만 출결 inference는 반복됩니다. 따라서 두 단계에 같은 계산량을 쓰지 않았습니다.
 
@@ -87,7 +91,7 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 V3에서는 여러 frame embedding을 평균내는 방식도 실험했지만, V4에서는 반복 inference의 계산량을 줄이는 방향으로 best-frame 전략을 선택했습니다.
 
-## 4. End-to-end pipelines
+## 4. 등록부터 출결까지의 흐름
 
 ### 4.1 Registration pipeline
 
@@ -137,7 +141,7 @@ flowchart LR
 
 한 이미지에서 여러 얼굴을 검출하고 얼굴별로 동일한 hybrid matching을 수행합니다. 같은 사용자가 여러 검출 결과에 매핑되면 가장 좋은 결과 하나만 남겨 **한 프레임에서 같은 사람의 IN/OUT이 반복 토글되는 문제**를 막습니다.
 
-## 5. Current implementation
+## 5. 현재 구현 범위
 
 | 영역 | 현재 구현 |
 |---|---|
@@ -160,7 +164,7 @@ flowchart LR
 - [`check_in_out_v4`](backend/app/routers/attendance.py): best-frame 기반 출결
 - [`check_in_out_multi_image`](backend/app/routers/attendance.py): multi-face 판정과 사용자 중복 제거
 
-## 6. Quick start
+## 6. 실행 방법
 
 ### 6.1 MariaDB 준비
 
@@ -194,7 +198,7 @@ npm run dev
 
 기본 화면은 `http://127.0.0.1:5173`에서 열립니다.
 
-## 7. Repository structure
+## 7. 저장소 구성
 
 ```text
 backend/   FastAPI, DeepFace, SQLAlchemy, MariaDB schema
@@ -203,7 +207,7 @@ docs/      evaluation, security, deployment notes
 assets/    public documentation assets
 ```
 
-## 8. Validation status and deployment boundary
+## 8. 검증된 것과 아직 검증하지 않은 것
 
 자동화 검사에서는 Python 코드 구문, 출결 IN/OUT 전환 단위 테스트와 TypeScript/Vite 프로덕션 빌드를 확인합니다.
 
@@ -214,7 +218,7 @@ assets/    public documentation assets
 - Before vs After latency benchmark
 - 실제 운영 규모에서의 load test
 
-따라서 **"정확도가 향상됐다"거나 "운영 성능이 검증됐다"고 주장하지 않습니다.** 현재 확인 가능한 성과는 ambiguity를 다룰 수 있도록 decision rule을 확장하고, 등록·검색·출결·다중 얼굴·운영 로그를 하나의 흐름으로 구현했다는 점입니다.
+따라서 정확도가 향상됐다거나 운영 성능이 검증됐다고 주장하지 않습니다. 현재 확인 가능한 범위는 ambiguity를 다룰 수 있도록 decision rule을 확장하고, 등록, 검색, 출결, 다중 얼굴과 운영 로그를 하나의 흐름으로 구현했다는 점입니다.
 
 공개본은 로컬 연구용 프로토타입입니다. 사용자와 로그 관리 API의 인증, HTTPS, embedding 암호화와 보관 정책은 포함하지 않았습니다. 외부 네트워크에 그대로 배포하면 안 됩니다. 후속 평가와 운영 항목은 [평가·보안·배포 계획](docs/LEARNING_ROADMAP.md)에 정리했습니다.
 
