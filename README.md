@@ -71,6 +71,8 @@ centroid 하나로 사용자를 완전히 대표하려는 것이 아니라, **ce
 
 현재 코드의 예시 기준은 cosine distance `< 0.68`, margin gap `>= 0.03`입니다. 이 값들은 운영 데이터에서 FAR/FRR을 측정해 calibration한 최종값이 아니라 **현재 프로토타입의 decision rule**입니다.
 
+이 선택에는 잘못된 출결을 나중에 수정하는 비용이 한 번 더 촬영하도록 요청하는 비용보다 크다는 판단도 반영했습니다. 따라서 후보가 애매하면 가장 가까운 사용자를 강제로 승인하지 않고 재시도로 보냅니다.
+
 ### 3.3 Centroid 검색 뒤 sample 재검증
 
 모든 사용자의 모든 sample embedding을 처음부터 비교하면 등록 sample이 늘수록 비교량도 함께 커집니다. 반대로 centroid만 최종 판정에 사용하면 평균 벡터가 실제 얼굴 sample을 충분히 대표하지 못할 수 있습니다.
@@ -172,7 +174,7 @@ flowchart LR
 
 ### 6.2 Backend
 
-Python 3.10~3.12 환경을 권장합니다. 프로젝트 작업 당시 Python 3.13에서는 MediaPipe 호환 문제가 있었습니다.
+자동 검증은 Python 3.12에서 실행합니다. 로컬 개발 환경의 Python 3.13에서는 기존 MediaPipe `solutions` API 문제를 확인한 뒤 Tasks API로 옮겼습니다. 전체 DeepFace와 TensorFlow 의존성을 같은 조건으로 맞추려면 Python 3.12가 가장 재현하기 쉬운 기준입니다. 변경 과정은 [트러블슈팅 문서](backend/TROUBLESHOOTING.md)에 남겼습니다.
 
 ```powershell
 cd backend
