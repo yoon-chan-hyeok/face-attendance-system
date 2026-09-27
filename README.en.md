@@ -1,4 +1,4 @@
-# Face Attendance System Upgrade
+# Face Attendance: Upgrading Identity Decisions to Prevent False Acceptances
 
 [한국어](README.md)
 

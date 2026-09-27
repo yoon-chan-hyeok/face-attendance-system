@@ -1,4 +1,4 @@
-# Face Attendance System Upgrade
+# Face Attendance: 오인 승인 방지를 위한 판정 고도화
 
 [English](README.en.md)
 
