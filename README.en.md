@@ -8,6 +8,8 @@ The central decision is a margin gate: when two users are too close, the system 
 
 ## Why change the decision rule?
 
+The existing system already had basic face matching, a web interface and some liveness checks. This work focuses on how model embeddings become enrollment records, retrieval candidates and attendance decisions, rather than training a new face model.
+
 The target workflow is a registered user checking in or out through a camera. The initial system stored one representative embedding per user and accepted the closest candidate when its distance passed a threshold.
 
 Tests under different lighting and camera positions exposed incorrect acceptance of similar users. A low distance to the best candidate did not explain whether a second user was almost equally close. I chose to request another capture for ambiguous cases, considering the cost of correcting a wrong attendance record later.
